@@ -1,0 +1,110 @@
+= Attached Properties
+In this article, we will tackle the attached properties of a QML application. As a matter of fact, attached properties are a way to specify or add capabilities to your QML element.
+
+:toc:
+:sectnums:
+
+== Introduction
+We know about the keys attached property which add some keys handling capabilities for some element such as a rectangle, and we also have looked at this before. However, what if we want to build this features for our own custom type.
+
+== Add timing capabilities
+Something we might want to create is a timing capabilities in every QML types.
+
+NOTE: Imagine that we have a custom `Person` type that we know and love, still, we might want to add timing capabilities to it for some reasons, such as:
+
+```json
+Window {
+    ...
+    Person {
+        name: "John"
+        age: 33
+        
+        Timer.running: false
+        Timer.interval: 2000
+        Timer.onTimerOut: {
+            console.log("Timer for a person")
+        }
+    }
+    
+    Rectangle {
+        id: rectId
+        width: 200
+        height: 200
+        color: "yellowgreen"
+        
+        Timer.running: true
+        Timer.interval: 2000
+        Timer.onTimerOut: {
+            console.log("Timer out for rect")
+        }
+    }
+}
+```
+So we can create a type that contains several properties such as:
+
+* One property named `running` which is a boolean to know whether or not the timer has to be running or not
+* One property named `interval` that is going to timeout at each interval in case of the timer is running
+* One property that is a function that is triggered once the `Timer` times out.
+
+NOTE: As shown above, we can see that this `Timer` capability has to work for either a `Person` object, or a `Rectangle`.
+
+IMPORTANT: Timer is an attached property, we are attaching it to some elements (in our cases, the `Person` or `Rectangle` class
+
+== How to create an attached property
+When you are creating an attached property, you will have to have 2 classes that are as follows:
+
+=== Attached class
+In our case, we'll need an attached class that will contains the "normal" properties (in our cases: `interval` and `running`. And after that class, we need to create the class that will be referenced in our QML file. In our case, this class will also emit a signal once the timer times out.
+
+Class will look like:
+```cpp
+class TimerAttached: public QObject {
+    Q_OBJECT
+    QML_ELEMENT
+    QML_UNCREATABLE("Unable to create a TimerAttached on its own")
+    Q_PROPERTY(int interval READ interval WRITE setInterval NOTIFY intervalChanged)
+    Q_PROPERTY(bool running READ running WRITE setRunning NOTIFY runningChanged)
+public:
+    explicit TimerAttached(QObject *po_parent = nullptr);
+    int interval() const;
+    bool running() const;
+    void setInterval(int i_interval);
+    void setRunning(bool b_running);
+signals:
+    void intervalChanged(int i_interval);
+    void runningChanged(bool b_running);
+private:
+    QTimer *_po_timer;
+    int _i_interval;
+    bool _b_running;
+};
+```
+So you have the class attached above, that will contains all the properties that this `Timer` will contains, and it also create a signals for running the timer timeout. So this is the first class you need to create before going any further
+
+=== Timer class
+After creating the Attached class, you will need to create the attaching class. This class is very small than the one above, still you will have to attach it like this:
+
+```cpp
+class Timer : public QObject {
+    Q_OBJECT
+    QML_ELEMENT
+public:
+    explicit Timer(QObject *po_parent = nullptr);
+    
+    static TimerAttached *qmlAttachedProperties(QObject *po_object);
+private:
+signals:
+public slots:
+};
+
+QML_DECLARE_TYPE_INFO(Timer, QML_HAS_ATTACHED_PROPERTIES)
+```
+The class defined above is the attached class, that is going to be referenced when you decide to use the attaching class in your QML file.
+
+NOTE: The class defined above isn't that complicated, however an attaching class has several requirements that are as follow:
+
+. This class has to inherit from `QObject`
+. This class has to contains a method named `qmlAttachedProperties(QObject *)` and this method will return an object of the Attaching type you've created earlier.
+. You have to add the class to the macro named `QML_DECLARE_TYPE_INFO`. Where you'll give it the name of the attaching class, and the second parameter will tell QML that this class is an attached property.
+
+IMPORTANT: Something to note is that we make the attaching class uncreatable, because we don't want to create attached class by theirselves, we are just gonna reference them.
